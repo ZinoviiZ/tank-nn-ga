@@ -1,0 +1,3 @@
+# Algorithmix
+
+![gif](./training.gif)

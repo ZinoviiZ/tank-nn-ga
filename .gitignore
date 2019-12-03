@@ -1,0 +1,13 @@
+# IntelliJ and build folders
+
+.idea
+bin
+target
+
+#any class files
+*.class
+*.iml
+/src/main/webapp/*
+*.DS_Store
+
+src/main/java/com/codenjoy/dojo/battlecity/client/TOKEN.java

@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+
+# Example: ./register 157.230.127.144:8080
+import requests
+import random
+import string
+import argparse
+import sys
+
+def gen(k=10):
+    return ''.join(random.choices(string.ascii_letters, k=k))
+
+parser = argparse.ArgumentParser()
+parser.add_argument('addr', type=str)
+parser.add_argument('--gameName', type=str, default='battlecity')
+args = parser.parse_args()
+
+email = gen() + '@' + gen() + '.com'
+readableName = gen() + ' ' + gen()
+password = gen()
+gameName = args.gameName
+url = 'http://{}/codenjoy-contest/register'.format(args.addr)
+
+data = {'data': '',
+        'email': email,
+        'readableName': readableName,
+        'password': password,
+        'gameName': gameName}
+
+r = requests.post(url, data=data)
+sys.stderr.write('Name: {}\n'.format(readableName));
+print(r.url)

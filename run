@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+import requests
+import random
+import string
+import argparse
+import json
+import re
+import time
+import subprocess
+import os
+
+NN_SIZE = 3285
+
+def gen_word(k=10):
+    return ''.join(random.choices(string.ascii_letters, k=k))
+
+def remove(url):
+    requests.get(url + '&remove=true')
+
+def remove_bots(urls):
+    for url in urls.values():
+        remove(url)
+
+def get_scores(url):
+    # http://157.230.127.144:8080/codenjoy-contest/rest/player/53521m6i2watnfa09nbi/73866122510/wantsToPlay/battlecity
+    new = url.replace('board', 'rest').replace('?code=', '/') + '/wantsToPlay/battlecity'
+    data = json.loads(requests.get(new).text)
+    return {p['name']: int(p['score']) for p in data['players']}
+
+def extract_name(url):
+    # http://157.230.127.144:8080/codenjoy-contest/board/player/ixtuvgc22apnehn8sprn?code=3033159999295643265
+    return re.search('player/(.*)\?', url).group(1)
+
+def register(srv, game_name):
+    email = gen_word() + '@' + gen_word() + '.com'
+    readable_name = gen_word() + ' ' + gen_word()
+    password = gen_word()
+    url = 'http://{}/codenjoy-contest/register'.format(srv)
+
+    data = {'data': '',
+            'email': email,
+            'readableName': readable_name,
+            'password': password,
+            'gameName': game_name}
+
+    r = requests.post(url, data=data)
+    return (extract_name(r.url), r.url)
+
+def register_bots(srv, game_name='battlecity', cnt=20):
+    urls = []
+    for i in range(cnt):
+        urls.append(register(srv, game_name))
+    return dict(urls)
+
+def run(sol, url, featureFile=''):
+    # java -Dalgorithm=S -Durl=http://157.230.127.144:8080/codenjoy-contest/board/player/oql9oatkpelq9mxii1ef?code=7585365918951697611 -jar all.jar
+    return subprocess.Popen(['/usr/bin/java', '-Dalgorithm=' + sol, '-Durl=' + url, '-DfeatureFile=' + featureFile, '-jar', 'target/battlecity-engine-jar-with-dependencies.jar'], stdout=subprocess.DEVNULL)
+
+def cross(nn1, nn2):
+    till = random.randrange(len(nn1))
+    return [lerp(nn1[i], nn2[i]) for i in range(till)] + [lerp(nn2[i], nn1[i]) for i in range(till, len(nn2))]
+
+def lerp(x, y, c=0.3):
+    return x + (y - x)*c
+
+def gen_weight():
+    return random.uniform(-1000.0, 1000.0)
+
+def mutate(nn):
+    new = []
+    for i in range(len(nn)):
+        if random.random() < 0.3:
+            new.append(gen_weight())
+        else:
+            new.append(nn[i])
+    return new
+
+def gen_nn():
+    return [gen_weight() for i in range(NN_SIZE)]
+
+def print_nn(nn, filename):
+    with open(filename, 'w') as f:
+        f.write(' '.join(map(str, nn)))
+
+def read_nn(filename):
+    with open(filename, 'r') as f:
+        line = f.readlines()[0]
+    return list(map(float, line.split(' ')))
+
+def rank_nns(url, nns, timeout=30):
+    print('Registering bots...')
+    urls = register_bots(args.url, cnt=len(nns))
+    nns = dict(zip(urls.keys(), nns))
+    print('Dumping NNs...')
+    for name, nn in nns.items():
+        print_nn(nn, 'nns/' + name)
+
+    print('Starting...')
+    ps = list(map(lambda i: run('N', i[1], featureFile='nns/'+i[0]), urls.items()))
+
+    print('Waiting {} seconds...'.format(timeout))
+    time.sleep(timeout)
+    for p in ps:
+        p.terminate()
+
+    scores = get_scores(list(urls.values())[0])
+    print(sorted(scores.values(), reverse=True))
+    result = sorted(nns.items(), key=lambda p: scores[p[0]], reverse=True)
+
+    remove_bots(urls)
+    print('Bots removed.')
+
+    for name in nns.keys():
+        os.remove('nns/' + name)
+    print('NN dumps cleaned.')
+
+    return list(map(lambda p: p[1], result))
+
+parser = argparse.ArgumentParser()
+parser.add_argument('url', type=str)
+args = parser.parse_args()
+
+# nns = [gen_nn() for i in range(10)]
+nns = [read_nn('top/' + str(i)) for i in range(10)]
+
+for i in range(1000):
+    print('Epoch ' + str(i))
+    nns = rank_nns(args.url, nns)
+    nns = nns[:5] + [cross(nns[random.randrange(5)], nns[random.randrange(5)]) for i in range(5)]
+    if random.random() < 0.1:
+        j = random.randrange(10)
+        nns[j] = mutate(nns[j])
+    for i in range(10):
+        print_nn(nns[i], 'top/' + str(i))

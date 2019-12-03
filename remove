@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+
+# Example usage ./remove http://157.230.127.144:8080/codenjoy-contest/board/player/ixtuvgc22apnehn8sprn?code=3033159999295643265
+import requests
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('url', type=str)
+args = parser.parse_args()
+
+requests.get(args.url + '&remove=true')
+print('Done.')
